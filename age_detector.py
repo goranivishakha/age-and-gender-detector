@@ -1,14 +1,15 @@
 import cv2
 
-# Load age model
-age_proto = "deploy_age.prototxt"
-age_model = "age_net.caffemodel"
-age_net = cv2.dnn.readNet(age_model, age_proto)
+# Load models
+age_net = cv2.dnn.readNet("age_net.caffemodel", "deploy_age.prototxt")
+gender_net = cv2.dnn.readNet("gender_net.caffemodel", "deploy_gender.prototxt")
 
-# Age groups used by the model
+# Model input details
+MODEL_MEAN_VALUES = (78.426, 87.768, 114.895)
 age_list = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']
+gender_list = ['Male', 'Female']
 
-# Initialize camera
+# Open webcam
 cap = cv2.VideoCapture(0)
 
 # Load face detector
@@ -23,19 +24,29 @@ while True:
 
     for (x, y, w, h) in faces:
         face_img = frame[y:y+h, x:x+w].copy()
-        blob = cv2.dnn.blobFromImage(face_img, 1.0, (227, 227), (78.426, 87.768, 114.895), swapRB=False)
+
+        blob = cv2.dnn.blobFromImage(face_img, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
+
+        # Predict Gender
+        gender_net.setInput(blob)
+        gender_preds = gender_net.forward()
+        gender = gender_list[gender_preds[0].argmax()]
+
+        # Predict Age
         age_net.setInput(blob)
         age_preds = age_net.forward()
         age = age_list[age_preds[0].argmax()]
 
-        label = f"Age: {age}"
+        # Prepare label and draw
+        label = f"{gender}, {age}"
         cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 0), 2)
         cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-    cv2.imshow("Age Estimation", frame)
+    cv2.imshow("Age and Gender Estimation", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
+
